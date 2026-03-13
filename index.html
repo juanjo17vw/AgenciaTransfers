@@ -353,9 +353,14 @@ function getKey() { return localStorage.getItem('al_key') || ''; }
 
 // ── PARSE ──
 function parseRaw(raw) {
-  // Normalize: collapse newlines into spaces, then split by tabs
+  // Normalize: collapse newlines into spaces
   const normalized = raw.replace(/\r?\n/g, ' ').trim();
-  const p = normalized.split(/\t+/).map(s => s.trim());
+  // Try tab split first; if only 1 part, fall back to multi-space split
+  let p = normalized.split(/\t+/).map(s => s.trim()).filter((s,i,a) => s !== '' || i === 0);
+  if (p.length < 3) {
+    // No tabs — split on 2+ spaces
+    p = normalized.split(/  +/).map(s => s.trim()).filter(s => s !== '');
+  }
 
   // p[0]="31/12/2025 10:35", p[1]="Arrival", p[2]="4 Jakob Leeb FR104 Aeropuerto PMI Innside Palma Center Palma 34,00 €"
   // If only 3 parts (mixed format), split p[2] by known patterns
@@ -623,11 +628,12 @@ async function fetchFlight(idx) {
   const apiUrl = `https://airlabs.co/api/v9/flight?flight_iata=${flightCode}&api_key=${key}`;
 
   const proxyList = [
-    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    u => `https://cors.eu.org/${u}`,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
     u => `https://corsproxy.org/?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+    u => `https://cors.eu.org/${u}`,
     u => `https://proxy.cors.sh/${u}`,
   ];
 
