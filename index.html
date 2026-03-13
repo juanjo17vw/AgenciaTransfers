@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transfer · Live</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0d11; --card: #13151b; --border: #1d2029;
+  --green: #00d4aa; --orange: #ff6b35; --yellow: #f0c040; --red: #ff4757;
+  --text: #e8eaf0; --muted: #555a6a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; min-height:100vh; }
+
+/* TOP BAR */
+header { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:10; }
+.brand { font-family:'Syne',sans-serif; font-weight:800; font-size:16px; }
+.brand em { color:var(--green); font-style:normal; }
+.clock { font-size:12px; color:var(--muted); }
+
+/* VIEWS */
+#viewList  { display:block; }
+#viewDetail { display:none; }
+
+/* MAIN CONTAINER */
+.container { max-width:560px; margin:0 auto; padding:20px; }
+
+/* API KEY */
+.setup-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; }
+.setup-title { font-family:'Syne',sans-serif; font-weight:700; font-size:12px; color:var(--green); cursor:pointer; display:flex; align-items:center; justify-content:space-between; }
+.setup-note { font-size:10px; color:var(--muted); line-height:1.6; margin:10px 0 12px; }
+.setup-note a { color:var(--green); }
+.key-row { display:flex; gap:8px; }
+.key-row input { flex:1; padding:9px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:'DM Mono',monospace; font-size:12px; outline:none; }
+.key-row input:focus { border-color:var(--green); }
+.key-btn { padding:9px 16px; background:var(--green); color:#000; font-family:'Syne',sans-serif; font-weight:700; font-size:11px; border:none; border-radius:6px; cursor:pointer; }
+.key-status { font-size:10px; margin-top:8px; color:var(--green); }
+
+/* INPUT */
+.input-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:20px; }
+.input-label { font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+textarea { width:100%; padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-family:'DM Mono',monospace; font-size:11px; resize:none; height:56px; outline:none; }
+textarea:focus { border-color:var(--green); }
+.add-btn { margin-top:8px; width:100%; padding:11px; background:var(--green); color:#000; font-family:'Syne',sans-serif; font-weight:800; font-size:12px; letter-spacing:1px; text-transform:uppercase; border:none; border-radius:7px; cursor:pointer; }
+
+/* SERVICE LIST */
+.list-header { font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+.svc-list { display:flex; flex-direction:column; gap:8px; }
+.svc-item { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color 0.2s; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.svc-item:hover { border-color:var(--green); }
+.svc-item.landed { border-color:rgba(0,212,170,0.3); opacity:0.6; }
+.svc-item.delayed { border-color:var(--yellow); }
+.svc-item.active  { border-color:var(--green); }
+.svc-left { flex:1; min-width:0; }
+.svc-name { font-family:'Syne',sans-serif; font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.svc-info { font-size:10px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.svc-right { text-align:right; flex-shrink:0; }
+.svc-eta  { font-family:'Syne',sans-serif; font-weight:800; font-size:16px; color:var(--green); }
+.svc-eta.urgent { color:var(--orange); }
+.svc-eta.done   { color:var(--muted); font-size:12px; }
+.svc-flight { font-size:10px; color:var(--muted); margin-top:2px; }
+.empty-list { text-align:center; padding:40px 20px; color:var(--muted); font-size:12px; }
+
+/* DETAIL BACK */
+.back-btn { display:flex; align-items:center; gap:8px; background:none; border:none; color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; padding:0; margin-bottom:20px; }
+.back-btn:hover { color:var(--text); }
+
+/* FLIGHT HEADER */
+.flight-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; }
+.flight-name { font-family:'Syne',sans-serif; font-weight:800; }
+.flight-name .fn-first { font-size:11px; letter-spacing:3px; color:var(--muted); font-weight:400; display:block; }
+.flight-name .fn-last  { font-size:22px; letter-spacing:2px; color:var(--green); display:block; }
+.refresh-btn { padding:7px 14px; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--muted); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s; }
+.refresh-btn:hover { border-color:var(--green); color:var(--green); }
+.refresh-btn.spinning .icon { display:inline-block; animation:spin 1s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg);} }
+
+/* STATUS */
+.status-row { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+.status-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+.status-val { font-family:'Syne',sans-serif; font-weight:700; font-size:13px; padding:4px 12px; border-radius:20px; letter-spacing:1px; text-transform:uppercase; }
+.sv-scheduled { background:rgba(85,90,106,0.15); color:var(--muted); }
+.sv-active    { background:rgba(0,212,170,0.12); color:var(--green); }
+.sv-landed    { background:rgba(255,107,53,0.12); color:var(--orange); }
+.sv-cancelled { background:rgba(255,71,87,0.12); color:var(--red); }
+.sv-delayed   { background:rgba(240,192,64,0.12); color:var(--yellow); }
+
+/* PHASE CARDS */
+.phases { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+.phase-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; position:relative; overflow:hidden; transition:border-color 0.3s; }
+.phase-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--border); }
+.phase-card.done::before    { background:rgba(0,212,170,0.4); }
+.phase-card.delayed::before { background:var(--yellow); }
+.phase-card.done    { border-color:rgba(0,212,170,0.3); }
+.phase-card.delayed { border-color:var(--yellow); }
+.phase-icon  { font-size:20px; margin-bottom:8px; display:block; }
+.phase-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
+.phase-time  { font-family:'Syne',sans-serif; font-weight:800; font-size:24px; line-height:1; }
+.phase-time.green  { color:var(--green); }
+.phase-time.yellow { color:var(--yellow); }
+.phase-time.orange { color:var(--orange); }
+.phase-time.muted  { color:var(--muted); }
+.phase-sub   { font-size:10px; color:var(--muted); margin-top:5px; }
+.delay-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; margin-top:5px; }
+.delay-badge.late  { background:rgba(240,192,64,0.15); color:var(--yellow); border:1px solid rgba(240,192,64,0.3); }
+.delay-badge.early { background:rgba(0,212,170,0.1); color:var(--green); border:1px solid rgba(0,212,170,0.2); }
+.delay-badge.ok    { background:rgba(0,212,170,0.08); color:var(--green); }
+
+/* COUNTDOWN */
+.countdown-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+.cd-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
+.cd-sub   { font-size:10px; color:var(--muted); }
+.cd-val   { font-family:'Syne',sans-serif; font-weight:800; font-size:28px; color:var(--green); text-align:right; }
+.cd-val.urgent   { color:var(--orange); animation:urgentPulse 1s infinite; }
+.cd-val.done-col { color:var(--muted); }
+@keyframes urgentPulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+/* PAX ROW */
+.pax-row { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; }
+.pax-name  { font-family:'Syne',sans-serif; font-weight:700; font-size:15px; }
+.pax-meta  { font-size:10px; color:var(--muted); margin-top:3px; }
+.pax-price { font-family:'Syne',sans-serif; font-weight:800; font-size:17px; color:var(--green); }
+
+/* NEXT REFRESH */
+.next-refresh { text-align:center; font-size:10px; color:var(--muted); margin-bottom:14px; }
+.nrf-bar  { height:2px; background:var(--border); border-radius:2px; margin-top:6px; overflow:hidden; }
+.nrf-fill { height:100%; background:var(--green); transition:width 1s linear; }
+
+/* ACTION BUTTONS */
+.action-btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.action-btn { padding:12px; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:'Syne',sans-serif; font-weight:700; font-size:12px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+.action-btn:hover { border-color:var(--green); color:var(--green); }
+.action-btn.maps { border-color:rgba(0,212,170,0.3); color:var(--green); }
+
+/* ALERT */
+.alert-banner { padding:12px 14px; border-radius:8px; margin-bottom:14px; font-size:11px; display:none; }
+.alert-banner.show { display:flex; align-items:center; gap:10px; }
+.alert-banner.warn { background:rgba(240,192,64,0.1); border:1px solid rgba(240,192,64,0.35); color:var(--yellow); }
+.alert-banner.good { background:rgba(0,212,170,0.08); border:1px solid rgba(0,212,170,0.25); color:var(--green); }
+.alert-banner.crit { background:rgba(255,71,87,0.1); border:1px solid rgba(255,71,87,0.3); color:var(--red); }
+
+/* LAST UPDATE */
+.last-update { text-align:center; font-size:10px; color:var(--muted); margin-top:8px; }
+
+/* DELETE BTN */
+.delete-btn { width:100%; padding:10px; background:transparent; border:1px solid rgba(255,71,87,0.3); border-radius:8px; color:var(--red); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; margin-top:6px; transition:all 0.2s; }
+.delete-btn:hover { background:rgba(255,71,87,0.08); }
+
+/* MODAL POSTER */
+.modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:999; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
+.modal.open { display:flex; }
+.poster { width:min(90vw,560px); aspect-ratio:1; background:#1e1d18; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; animation:scaleIn 0.3s ease; }
+@keyframes scaleIn { from{transform:scale(0.92);opacity:0;} to{transform:scale(1);opacity:1;} }
+.poster-body { text-align:center; padding:40px; }
+.p-first, .p-last { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:clamp(60px,15vw,108px); color:#f0ede4; text-transform:uppercase; display:block; line-height:0.92; letter-spacing:-1px; }
+.m-close { position:absolute; top:12px; right:14px; background:none; border:1px solid #333; color:#555; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:13px; }
+.m-print { position:absolute; bottom:12px; right:14px; padding:7px 14px; background:var(--green); border:none; color:#000; font-family:'Syne',sans-serif; font-weight:800; font-size:11px; border-radius:5px; cursor:pointer; }
+@media print { body>*:not(.modal){display:none!important;} .modal{display:flex!important;position:fixed!important;background:#1e1d18!important;} .m-close,.m-print{display:none!important;} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">TRANSFER<em>·LIVE</em></div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="clock" id="clock">--:--:--</div>
+    <button onclick="toggleSettings()" style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 6px;">⚙️</button>
+  </div>
+</header>
+
+<!-- SETTINGS PANEL -->
+<div id="settingsPanel" style="display:none;background:var(--card);border-bottom:1px solid var(--border);padding:16px 20px;max-width:560px;margin:0 auto;">
+  <div style="font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Ajustes</div>
+  <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">AirLabs API Key · <a href="https://airlabs.co" target="_blank" style="color:var(--green)">airlabs.co</a> · <span id="budgetDisplay" style="color:var(--yellow)"></span></div>
+  <div style="display:flex;gap:8px;">
+    <input type="password" id="apiKeyInput" placeholder="tu_api_key_aquí" style="flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;">
+    <button onclick="saveKey()" style="padding:9px 16px;background:var(--green);color:#000;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;border:none;border-radius:6px;cursor:pointer;">Guardar</button>
+  </div>
+  <div id="keyStatus" style="font-size:10px;margin-top:8px;color:var(--green);"></div>
+</div>
+
+<!-- ── VIEW: LIST ── -->
+<div id="viewList">
+  <div class="container">
+
+    <!-- INPUT -->
+    <div class="input-card">
+      <div class="input-label">Nuevo servicio</div>
+      <textarea id="rawInput" placeholder="Pega el mensaje de WhatsApp aquí..."></textarea>
+      <button class="add-btn" onclick="addService()">+ Añadir servicio</button>
+    </div>
+
+    <!-- LIST -->
+    <div class="list-header">Servicios activos</div>
+    <div class="svc-list" id="svcList">
+      <div class="empty-list">No hay servicios. Pega un mensaje arriba.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── VIEW: DETAIL ── -->
+<div id="viewDetail">
+  <div class="container">
+
+    <button class="back-btn" onclick="showList()">← Volver</button>
+
+    <div class="flight-header">
+      <div class="flight-name">
+        <span class="fn-first" id="detFirst">—</span>
+        <span class="fn-last"  id="detLast">—</span>
+      </div>
+      <button class="refresh-btn" id="refreshBtn" onclick="manualRefresh()">
+        <span class="icon">↻</span> Actualizar
+      </button>
+    </div>
+
+    <div class="alert-banner" id="alertBanner">
+      <span id="alertIcon">⚠️</span>
+      <span id="alertText">—</span>
+    </div>
+
+    <div class="status-row">
+      <div class="status-label">Estado del vuelo</div>
+      <div class="status-val" id="statusVal">—</div>
+    </div>
+
+    <div class="phases">
+      <div class="phase-card" id="depCard">
+        <span class="phase-icon">🛫</span>
+        <div class="phase-label">Despegue origen</div>
+        <div class="phase-time muted" id="depTime">--:--</div>
+        <div class="phase-sub" id="depSub">Programado</div>
+        <div id="depDelay"></div>
+      </div>
+      <div class="phase-card" id="arrCard">
+        <span class="phase-icon">🛬</span>
+        <div class="phase-label">Aterrizaje PMI</div>
+        <div class="phase-time muted" id="arrTime">--:--</div>
+        <div class="phase-sub" id="arrSub">Programado</div>
+        <div id="arrDelay"></div>
+      </div>
+    </div>
+
+    <div class="countdown-card">
+      <div>
+        <div class="cd-label" id="cdLabel">Tiempo hasta llegada</div>
+        <div class="cd-sub"   id="cdSub">—</div>
+      </div>
+      <div class="cd-val" id="cdVal">--:--</div>
+    </div>
+
+    <div class="pax-row">
+      <div>
+        <div class="pax-name" id="paxName">—</div>
+        <div class="pax-meta" id="paxMeta">—</div>
+      </div>
+      <div class="pax-price" id="paxPrice">—</div>
+    </div>
+
+    <div class="next-refresh">
+      Próxima actualización: <span id="nextRefreshSec">—</span>
+      <div class="nrf-bar"><div class="nrf-fill" id="nrfFill" style="width:100%"></div></div>
+    </div>
+
+    <div class="action-btns">
+      <button class="action-btn" onclick="openPoster()">🪧 Cartel</button>
+      <button class="action-btn maps" onclick="openMaps()">🗺 Con clientes</button>
+    </div>
+
+    <div class="last-update" id="lastUpdate">—</div>
+    <button class="delete-btn" id="deleteBtn" onclick="deleteCurrentService()">🗑 Eliminar servicio</button>
+
+  </div>
+</div>
+
+<!-- MODAL POSTER -->
+<div class="modal" id="posterModal">
+  <div class="poster">
+    <div class="poster-body">
+      <span class="p-first" id="pFirst">—</span>
+      <span class="p-last"  id="pLast">—</span>
+    </div>
+  </div>
+  <button class="m-close" onclick="closePoster()">✕</button>
+  <button class="m-print" onclick="window.print()">🖨</button>
+</div>
+
+<script>
+// ── STATE ──
+let services = [];       // array of svc objects
+let currentIdx = null;   // index of active detail view
+let timers = {};         // { idx: { countdown, progress } }
+let flightDataMap = {};  // { idx: flightData }
+let landedMap = {};      // { idx: bool }
+let notifPermission = false;
+
+// ── SETTINGS ──
+function toggleSettings() {
+  const p = document.getElementById('settingsPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── CLOCK ──
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-ES');
+}, 1000);
+
+// ── BUDGET ──
+function getBudget() {
+  const now = new Date();
+  const key = `${now.getFullYear()}-${now.getMonth()}`;
+  const s = JSON.parse(localStorage.getItem('al_budget') || '{}');
+  return s.month === key ? s : { month: key, used: 0 };
+}
+function incrementBudget() {
+  const b = getBudget(); b.used++;
+  localStorage.setItem('al_budget', JSON.stringify(b));
+  updateBudgetDisplay();
+}
+function updateBudgetDisplay() {
+  const b = getBudget();
+  const el = document.getElementById('budgetDisplay');
+  if (el) el.textContent = `Consumidas este mes: ${b.used}/1000`;
+}
+
+// ── API KEY ──
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (!k) return;
+  localStorage.setItem('al_key', k);
+  document.getElementById('keyStatus').textContent = '✓ Clave guardada';
+  toggleSettings();
+}
+function getKey() { return localStorage.getItem('al_key') || ''; }
+
+// ── PARSE ──
+function parseRaw(raw) {
+  // Normalize: collapse newlines into spaces, then split by tabs
+  const normalized = raw.replace(/\r?\n/g, ' ').trim();
+  const p = normalized.split(/\t+/).map(s => s.trim());
+
+  // p[0]="31/12/2025 10:35", p[1]="Arrival", p[2]="4 Jakob Leeb FR104 Aeropuerto PMI Innside Palma Center Palma 34,00 €"
+  // If only 3 parts (mixed format), split p[2] by known patterns
+  let pax, name, flight, hotel, city, price;
+
+  if (p.length >= 8) {
+    // Clean tab-separated format
+    const hasEmpty = p[3] === '';
+    const o = hasEmpty ? 0 : -1;
+    pax    = p[2];
+    name   = p[4 + o] || 'Cliente';
+    flight = p[5 + o] || '—';
+    hotel  = p[7 + o] || '—';
+    city   = p[8 + o] || '—';
+    price  = p[9 + o] || '—';
+  } else {
+    // Mixed format — join all parts from p[2] onwards into one string, then parse
+    const allRest = p.slice(2).join(' ').replace(/\r?\n/g, ' ').trim();
+
+    // Extract price (last €-amount)
+    const priceMatch = allRest.match(/([\d,.]+\s*€)\s*$/);
+    price = priceMatch ? priceMatch[1].trim() : '—';
+    const withoutPrice = allRest.replace(/[\d,.]+\s*€\s*$/, '').trim();
+
+    // Extract flight code (1-3 uppercase letters + digits e.g. FR104, VL1796, U21234)
+    const flightMatch = withoutPrice.match(/\b([A-Z]{1,3}\d{2,})\b/);
+    flight = flightMatch ? flightMatch[1] : '—';
+    const flightIdx = withoutPrice.indexOf(flight);
+
+    // Before flight: "4 Jakob Leeb" or "4 Vanja Fenzl"
+    const beforeFlight = withoutPrice.slice(0, flightIdx).trim();
+    const bfParts = beforeFlight.split(' ');
+    pax  = bfParts[0] || '?';
+    name = bfParts.slice(1).join(' ') || 'Cliente';
+
+    // After flight: "Aeropuerto PMI Brondo Architect Hotel Palma"
+    const afterFlight = withoutPrice.slice(flightIdx + flight.length).trim();
+    // Remove airport prefix
+    const airportMatch = afterFlight.match(/^(Aeropuerto\s+\w+)\s+/i);
+    const afterAirport = airportMatch ? afterFlight.slice(airportMatch[0].length).trim() : afterFlight;
+
+    // City is last word, hotel is everything before
+    const afterParts = afterAirport.split(' ');
+    city  = afterParts[afterParts.length - 1] || '—';
+    hotel = afterParts.slice(0, -1).join(' ') || '—';
+  }
+
+  const [datePart, timePart] = p[0].split(' ');
+  const [dd, mm, yyyy] = datePart.split('/');
+  const [hh, mi] = timePart.split(':');
+
+  const svc = {
+    datetime: new Date(yyyy, mm-1, dd, hh, mi),
+    pax:    pax.trim(),
+    name:   name.trim(),
+    flight: flight.trim(),
+    hotel:  hotel.trim(),
+    city:   city.trim(),
+    price:  price.trim(),
+  };
+  svc.etaDate = new Date(svc.datetime);
+  const parts = svc.name.split(' ');
+  svc.firstName = parts[0];
+  svc.lastName  = parts.slice(1).join(' ');
+  return svc;
+}
+
+// ── ADD SERVICE ──
+function addService() {
+  const raw = document.getElementById('rawInput').value.trim();
+  if (!raw) return;
+  try {
+    const svc = parseRaw(raw);
+    const idx = services.length;
+    services.push(svc);
+    flightDataMap[idx] = null;
+    landedMap[idx] = false;
+    document.getElementById('rawInput').value = '';
+    renderList();
+    saveServices();
+    startServiceTracking(idx);
+    if ('Notification' in window) Notification.requestPermission().then(r => notifPermission = r === 'granted');
+  } catch(e) {
+    alert('Error al leer el mensaje. Asegúrate de que el formato es correcto.');
+  }
+}
+
+// ── RENDER LIST ──
+function renderList() {
+  const el = document.getElementById('svcList');
+  if (services.length === 0) {
+    el.innerHTML = '<div class="empty-list">No hay servicios. Pega un mensaje arriba.</div>';
+    return;
+  }
+  el.innerHTML = services.map((s, i) => {
+    const fd = flightDataMap[i];
+    const landed = landedMap[i];
+    const ms = s.etaDate - new Date();
+    let etaText = '', etaClass = '';
+    if (landed) {
+      etaText = '✓ En tierra'; etaClass = 'done';
+    } else if (ms <= 0) {
+      etaText = 'EN TIERRA'; etaClass = 'urgent';
+    } else {
+      const h = Math.floor(ms/3600000);
+      const m = Math.floor((ms%3600000)/60000);
+      etaText = h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}m`;
+      etaClass = h === 0 ? 'urgent' : '';
+    }
+    const status = fd?.status || '';
+    let itemClass = '';
+    if (landed) itemClass = 'landed';
+    else if (status === 'en-route') itemClass = 'active';
+    else if (fd?.arr_delayed > 10) itemClass = 'delayed';
+
+    return `<div class="svc-item ${itemClass}" onclick="openDetail(${i})">
+      <div class="svc-left">
+        <div class="svc-name">${s.name}</div>
+        <div class="svc-info">${s.flight} · ${s.hotel} · ${s.pax} pax · ${s.price}</div>
+      </div>
+      <div class="svc-right">
+        <div class="svc-eta ${etaClass}">${etaText}</div>
+        <div class="svc-flight">${s.datetime.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Update list ETAs every second
+setInterval(() => {
+  if (document.getElementById('viewList').style.display !== 'none') renderList();
+}, 5000);
+
+// ── OPEN DETAIL ──
+function openDetail(idx) {
+  currentIdx = idx;
+  const svc = services[idx];
+  document.getElementById('viewList').style.display = 'none';
+  document.getElementById('viewDetail').style.display = 'block';
+
+  // Populate
+  document.getElementById('detFirst').textContent = svc.firstName.toUpperCase();
+  document.getElementById('detLast').textContent  = svc.lastName.toUpperCase();
+  document.getElementById('paxName').innerHTML = `<span style="display:block;font-size:10px;letter-spacing:3px;color:var(--muted);font-weight:400;margin-bottom:2px;">${svc.firstName.toUpperCase()}</span><span style="font-size:16px;letter-spacing:2px;">${svc.lastName.toUpperCase()}</span>`;
+  document.getElementById('paxMeta').textContent = `${svc.flight} · ${svc.city} · ${svc.pax} pax`;
+  document.getElementById('paxPrice').textContent = svc.price;
+  hideAlert();
+
+  // Restore flight data if exists
+  if (flightDataMap[idx]) updateUI(flightDataMap[idx], idx);
+
+  // Start countdown for this service
+  startDetailCountdown(idx);
+}
+
+function showList() {
+  document.getElementById('viewDetail').style.display = 'none';
+  document.getElementById('viewList').style.display = 'block';
+  currentIdx = null;
+  renderList();
+}
+
+// ── DELETE ──
+function deleteCurrentService() {
+  if (currentIdx === null) return;
+  const btn = document.getElementById('deleteBtn');
+  if (btn.dataset.confirm !== '1') {
+    btn.textContent = '⚠️ Pulsa de nuevo para confirmar';
+    btn.style.background = 'rgba(255,71,87,0.15)';
+    btn.dataset.confirm = '1';
+    setTimeout(() => { btn.textContent = '🗑 Eliminar servicio'; btn.style.background = ''; btn.dataset.confirm = ''; }, 3000);
+    return;
+  }
+  // Clear timers
+  if (timers[currentIdx]) {
+    clearInterval(timers[currentIdx].countdown);
+    clearInterval(timers[currentIdx].progress);
+  }
+  services.splice(currentIdx, 1);
+  // Reindex
+  const newFDM = {}, newLM = {}, newT = {};
+  services.forEach((_, i) => {
+    const oldI = i >= currentIdx ? i + 1 : i;
+    newFDM[i] = flightDataMap[oldI];
+    newLM[i]  = landedMap[oldI];
+    newT[i]   = timers[oldI];
+  });
+  flightDataMap = newFDM; landedMap = newLM; timers = newT;
+  saveServices();
+  showList();
+}
+
+// ── TRACKING ──
+function startServiceTracking(idx) {
+  checkAndFetch(idx);
+}
+
+function getInterval(msToArrival) {
+  if (msToArrival > 3 * 3600000) return null;
+  if (msToArrival > 1 * 3600000) return 30 * 60;
+  if (msToArrival > 20 * 60000)  return 15 * 60;
+  return 5 * 60;
+}
+
+function checkAndFetch(idx) {
+  if (landedMap[idx]) return;
+  const svc = services[idx];
+  if (!svc) return;
+  const msLeft = svc.etaDate - new Date();
+  const interval = getInterval(msLeft);
+  if (interval === null) {
+    setTimeout(() => checkAndFetch(idx), 15 * 60 * 1000);
+    return;
+  }
+  fetchFlight(idx).then(() => scheduleNext(idx, interval));
+}
+
+function scheduleNext(idx, interval) {
+  if (timers[idx]?.progress) clearInterval(timers[idx].progress);
+  if (landedMap[idx]) return;
+  if (!timers[idx]) timers[idx] = {};
+
+  let secsLeft = interval;
+  if (currentIdx === idx) updateProgressBar(secsLeft, interval);
+
+  timers[idx].progress = setInterval(() => {
+    secsLeft--;
+    if (currentIdx === idx) updateProgressBar(secsLeft, interval);
+    if (secsLeft <= 0) {
+      clearInterval(timers[idx].progress);
+      checkAndFetch(idx);
+    }
+  }, 1000);
+}
+
+function updateProgressBar(secsLeft, interval) {
+  const mins = Math.ceil(secsLeft / 60);
+  document.getElementById('nextRefreshSec').textContent = secsLeft > 60 ? mins + 'min' : secsLeft + 's';
+  document.getElementById('nrfFill').style.width = (secsLeft / interval * 100) + '%';
+}
+
+// ── FETCH ──
+async function fetchFlight(idx) {
+  const key = getKey();
+  if (!key) {
+    if (currentIdx === idx) showAlert('warn', '⚠️', 'Introduce tu API key de AirLabs.');
+    return;
+  }
+  const svc = services[idx];
+  if (!svc) return;
+
+  if (currentIdx === idx) {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('spinning'); btn.disabled = true;
+  }
+
+  const flightCode = svc.flight.replace(/\s/g, '');
+  const apiUrl = `https://airlabs.co/api/v9/flight?flight_iata=${flightCode}&api_key=${key}`;
+
+  const proxyList = [
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+    u => `https://proxy.cors.sh/${u}`,
+  ];
+
+  let success = false;
+  for (const makeProxy of proxyList) {
+    try {
+      const res = await fetch(makeProxy(apiUrl));
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (!text) continue;
+      const json = JSON.parse(text);
+      if (json.error) throw new Error(json.error.message || 'API error');
+      const fd = json.response;
+      flightDataMap[idx] = fd || null;
+      incrementBudget();
+      if (fd && currentIdx === idx) {
+        updateUI(fd, idx);
+        hideAlert();
+        document.getElementById('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-ES');
+      } else if (!fd && currentIdx === idx) {
+        showAlert('warn', '✈️', `Vuelo ${svc.flight} aún sin datos.`);
+      }
+      success = true;
+      break;
+    } catch(e) { continue; }
+  }
+
+  if (!success && currentIdx === idx) {
+    showAlert('warn', '⚠️', 'Sin conexión. Reintentando automáticamente.');
+  }
+
+  if (currentIdx === idx) {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.remove('spinning'); btn.disabled = false;
+  }
+}
+
+function manualRefresh() {
+  if (currentIdx === null) return;
+  fetchFlight(currentIdx);
+}
+
+// ── UPDATE UI ──
+function updateUI(fd, idx) {
+  const svc = services[idx];
+  if (!svc) return;
+
+  const statusMap = {
+    'scheduled': ['sv-scheduled','PROGRAMADO'],
+    'en-route':  ['sv-active','EN RUTA ✈'],
+    'landed':    ['sv-landed','ATERRIZADO ✓'],
+    'cancelled': ['sv-cancelled','CANCELADO'],
+    'diverted':  ['sv-cancelled','DESVIADO'],
+  };
+  const [svClass, svText] = statusMap[fd.status] || ['sv-scheduled',(fd.status||'—').toUpperCase()];
+  const svEl = document.getElementById('statusVal');
+  svEl.className = 'status-val ' + svClass;
+  svEl.textContent = svText;
+
+  // Departure
+  const depSched = fd.dep_time ? shortTime(fd.dep_time) : '--:--';
+  const depDelay = fd.dep_delayed || 0;
+  const depCard  = document.getElementById('depCard');
+  depCard.className = 'phase-card';
+  const departed = ['en-route','landed'].includes(fd.status);
+
+  if (departed && fd.dep_time) {
+    const realDepMs = parseFlight(fd.dep_time) + depDelay * 60000;
+    const realDep   = shortTime(new Date(realDepMs).toISOString().replace('T',' ').slice(0,16));
+    depCard.classList.add('done');
+    document.getElementById('depTime').className = 'phase-time green';
+    document.getElementById('depTime').textContent = realDep;
+    document.getElementById('depSub').textContent  = `Despegó · Prog: ${depSched}`;
+    renderDelayBadge('depDelay', depDelay);
+    if (depDelay > 15) {
+      svc.etaDate = new Date(svc.etaDate.getTime() + depDelay * 60000);
+      showAlert('warn','⚠️',`${svc.flight} despegó con ${depDelay} min de retraso.`);
+    }
+  } else {
+    document.getElementById('depTime').className = 'phase-time muted';
+    document.getElementById('depTime').textContent = depSched;
+    document.getElementById('depSub').textContent  = 'Programado';
+    if (depDelay > 10) { depCard.classList.add('delayed'); renderDelayBadge('depDelay', depDelay); }
+    else document.getElementById('depDelay').innerHTML = '';
+  }
+
+  // Arrival
+  const arrSched = fd.arr_time ? shortTime(fd.arr_time) : '--:--';
+  const arrDelay = fd.arr_delayed || fd.delayed || 0;
+  const arrCard  = document.getElementById('arrCard');
+  arrCard.className = 'phase-card';
+
+  if (fd.status === 'landed' && fd.arr_time) {
+    const realArrMs = parseFlight(fd.arr_time) + arrDelay * 60000;
+    const realArr   = shortTime(new Date(realArrMs).toISOString().replace('T',' ').slice(0,16));
+    arrCard.classList.add('done');
+    document.getElementById('arrTime').className = 'phase-time orange';
+    document.getElementById('arrTime').textContent = realArr;
+    document.getElementById('arrSub').textContent  = `En tierra · Prog: ${arrSched}`;
+    renderDelayBadge('arrDelay', arrDelay);
+    landedMap[idx] = true;
+    notify(`🛬 ${svc.flight} aterrizado`, `${svc.name} en terminal`);
+    showAlert('good','🛬',`${svc.flight} en tierra PMI. ¡Dirígete al punto de encuentro!`);
+    document.getElementById('nextRefreshSec').textContent = 'Completado';
+    document.getElementById('nrfFill').style.width = '100%';
+  } else {
+    const etaMs  = parseFlight(fd.arr_time || '') + arrDelay * 60000;
+    const etaStr = fd.arr_time ? shortTime(new Date(etaMs).toISOString().replace('T',' ').slice(0,16)) : arrSched;
+    if (arrDelay > 10) {
+      arrCard.classList.add('delayed');
+      document.getElementById('arrTime').className = 'phase-time yellow';
+      document.getElementById('arrSub').textContent  = `ETA actualizada · Prog: ${arrSched}`;
+      renderDelayBadge('arrDelay', arrDelay);
+      showAlert('warn','⚠️',`${svc.flight} llega con ${arrDelay} min de retraso. ETA: ${etaStr}`);
+    } else {
+      document.getElementById('arrTime').className = 'phase-time ' + (fd.status==='en-route'?'green':'muted');
+      document.getElementById('arrSub').textContent  = fd.status==='en-route' ? 'ETA estimada' : 'Programado';
+      document.getElementById('arrDelay').innerHTML = '';
+    }
+    document.getElementById('arrTime').textContent = etaStr;
+    if (fd.arr_time) svc.etaDate = new Date(etaMs);
+  }
+}
+
+// ── COUNTDOWN ──
+function startDetailCountdown(idx) {
+  if (timers[idx]?.countdown) clearInterval(timers[idx].countdown);
+  if (!timers[idx]) timers[idx] = {};
+
+  timers[idx].countdown = setInterval(() => {
+    if (currentIdx !== idx) return;
+    const svc = services[idx];
+    if (!svc) return;
+    const ms  = svc.etaDate - new Date();
+    const el  = document.getElementById('cdVal');
+    const lbl = document.getElementById('cdLabel');
+    const sub = document.getElementById('cdSub');
+
+    if (landedMap[idx]) {
+      el.className = 'cd-val done-col'; el.textContent = '✓';
+      lbl.textContent = 'Aterrizado'; sub.textContent = 'Pasajero en terminal'; return;
+    }
+    if (ms <= 0) {
+      el.className = 'cd-val urgent'; el.textContent = 'EN TIERRA';
+      lbl.textContent = 'Hora llegada'; return;
+    }
+    const h = Math.floor(ms/3600000);
+    const m = Math.floor((ms%3600000)/60000);
+    const s = Math.floor((ms%60000)/1000);
+    el.className = 'cd-val' + (h===0?' urgent':'');
+    el.textContent = h>0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    lbl.textContent = 'Tiempo hasta llegada PMI';
+    sub.textContent = `ETA: ${svc.datetime.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`;
+  }, 1000);
+}
+
+// ── HELPERS ──
+function shortTime(str) {
+  if (!str) return '--:--';
+  const d = new Date(str.replace(' ','T'));
+  return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+}
+function parseFlight(str) {
+  if (!str) return 0;
+  return new Date(str.replace(' ','T')).getTime() || 0;
+}
+function renderDelayBadge(elId, min) {
+  const el = document.getElementById(elId);
+  if (!min || min === 0) el.innerHTML = '<span class="delay-badge ok">A tiempo</span>';
+  else if (min > 0)      el.innerHTML = `<span class="delay-badge late">+${min} min</span>`;
+  else                   el.innerHTML = `<span class="delay-badge early">${min} min antes</span>`;
+}
+function notify(title, body) { if (notifPermission) new Notification(title,{body}); }
+function showAlert(type, icon, text) {
+  const el = document.getElementById('alertBanner');
+  el.className = 'alert-banner show ' + type;
+  document.getElementById('alertIcon').textContent = icon;
+  document.getElementById('alertText').textContent = text;
+}
+function hideAlert() { document.getElementById('alertBanner').className = 'alert-banner'; }
+
+// ── POSTER ──
+function openPoster() {
+  if (currentIdx === null) return;
+  const svc = services[currentIdx];
+  document.getElementById('pFirst').textContent = svc.firstName.toUpperCase();
+  document.getElementById('pLast').textContent  = svc.lastName.toUpperCase();
+  document.getElementById('posterModal').classList.add('open');
+}
+function closePoster() { document.getElementById('posterModal').classList.remove('open'); }
+
+// ── MAPS ──
+function openMaps() {
+  if (currentIdx === null) return;
+  const svc = services[currentIdx];
+  const hotelName = (svc.hotel && svc.hotel !== '—') ? svc.hotel : svc.name;
+  const query = encodeURIComponent(hotelName + ' Mallorca');
+  window.open(`https://www.google.com/maps/search/${query}`, '_blank');
+}
+
+// ── PERSIST SERVICES ──
+function saveServices() {
+  // Save only the serializable parts (no timers/flightData)
+  const toSave = services.map(s => ({
+    datetime: s.datetime.toISOString(),
+    etaDate:  s.etaDate.toISOString(),
+    pax: s.pax, name: s.name, flight: s.flight,
+    hotel: s.hotel, city: s.city, price: s.price,
+    firstName: s.firstName, lastName: s.lastName,
+  }));
+  localStorage.setItem('tl_services', JSON.stringify(toSave));
+}
+
+function loadServices() {
+  const saved = localStorage.getItem('tl_services');
+  if (!saved) return;
+  try {
+    const arr = JSON.parse(saved);
+    arr.forEach(s => {
+      s.datetime = new Date(s.datetime);
+      s.etaDate  = new Date(s.etaDate);
+      const idx = services.length;
+      services.push(s);
+      flightDataMap[idx] = null;
+      landedMap[idx] = false;
+      startServiceTracking(idx);
+    });
+    renderList();
+  } catch(e) { console.error('Error loading services', e); }
+}
+
+// ── INIT ──
+window.onload = () => {
+  const saved = localStorage.getItem('al_key');
+  if (saved) {
+    document.getElementById('apiKeyInput').value = saved;
+    document.getElementById('keyStatus').textContent = '✓ Clave guardada';
+  }
+  updateBudgetDisplay();
+  loadServices();
+};
+</script>
+</body>
+</html>
