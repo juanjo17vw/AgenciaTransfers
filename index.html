@@ -641,6 +641,15 @@ async function fetchFlight(idx) {
       const fd = json.response;
       flightDataMap[idx] = fd || null;
       incrementBudget();
+      // DEBUG — mostrar campos de tiempo en pantalla
+      if (fd) {
+        const dbg = ['dep_time','dep_time_utc','dep_time_ts','dep_actual','dep_actual_utc','dep_actual_ts',
+                     'arr_time','arr_time_utc','arr_time_ts','arr_estimated','arr_estimated_utc','arr_estimated_ts',
+                     'dep_delayed','arr_delayed','status'];
+        const lines = dbg.map(k => `${k}: ${fd[k] ?? '—'}`).join('\n');
+        document.getElementById('debugBox').textContent = lines;
+        document.getElementById('debugBox').style.display = 'block';
+      }
       if (fd && currentIdx === idx) {
         updateUI(fd, idx);
         hideAlert();
