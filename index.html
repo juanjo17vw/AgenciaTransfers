@@ -591,7 +591,25 @@ function deleteCurrentService() {
 
 // ── TRACKING ──
 function startServiceTracking(idx) {
-  checkAndFetch(idx);
+  if (landedMap[idx]) return;
+  const svc = services[idx];
+  if (!svc) return;
+  // Always fetch immediately on load if flight is today and not >6h away from scheduled time
+  const msFromScheduled = svc.datetime - new Date();
+  const msFromEta = svc.etaDate - new Date();
+  // If scheduled time was in the past or within 6h future, fetch immediately regardless of ETA
+  if (msFromScheduled < 6 * 3600000) {
+    fetchFlight(idx).then(() => {
+      const svcNow = services[idx];
+      if (!svcNow || landedMap[idx]) return;
+      const msLeftNow = svcNow.etaDate - new Date();
+      const intervalNow = getInterval(msLeftNow);
+      if (intervalNow) scheduleNext(idx, intervalNow);
+      else setTimeout(() => checkAndFetch(idx), 15 * 60 * 1000);
+    });
+  } else {
+    checkAndFetch(idx);
+  }
 }
 
 function getInterval(msToArrival) {
