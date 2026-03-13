@@ -643,13 +643,12 @@ async function fetchFlight(idx) {
   const apiUrl = `https://airlabs.co/api/v9/flight?flight_iata=${flightCode}&api_key=${key}`;
 
   const proxyList = [
+    u => `https://shy-glade-1079.juanjojimenez89.workers.dev/?url=${encodeURIComponent(u)}`,
     u => `https://api.cors.lol/?url=${encodeURIComponent(u)}`,
-    u => `https://proxy.corsfix.com/?${encodeURIComponent(u)}`,
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
     u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
     u => `https://corsproxy.org/?url=${encodeURIComponent(u)}`,
-    u => `https://cors.eu.org/${u}`,
   ];
 
   let success = false;
