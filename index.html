@@ -94,9 +94,9 @@ textarea:focus { border-color:var(--green); }
 .phases { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
 .phase-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; position:relative; overflow:hidden; transition:border-color 0.3s; }
 .phase-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--border); }
-.phase-card.done::before    { background:rgba(0,212,170,0.4); }
+.phase-card.done::before    { background:rgba(108,110,232,0.4); }
 .phase-card.delayed::before { background:var(--yellow); }
-.phase-card.done    { border-color:rgba(0,212,170,0.3); }
+.phase-card.done    { border-color:rgba(108,110,232,0.3); }
 .phase-card.delayed { border-color:var(--yellow); }
 .phase-icon  { font-size:20px; margin-bottom:8px; display:block; }
 .phase-label { font-size:9px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
@@ -106,10 +106,6 @@ textarea:focus { border-color:var(--green); }
 .phase-time.orange { color:var(--orange); }
 .phase-time.muted  { color:var(--muted); }
 .phase-sub   { font-size:10px; color:var(--muted); margin-top:5px; }
-.phase-row-times { display:flex; gap:14px; margin-top:6px; }
-.phase-row-times > div { flex:1; }
-.phase-time-label { font-size:9px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:3px; }
-.phase-row-times .phase-time { font-size:20px; }
 .delay-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; margin-top:5px; }
 .delay-badge.late  { background:rgba(240,192,64,0.15); color:var(--yellow); border:1px solid rgba(240,192,64,0.3); }
 .delay-badge.early { background:rgba(0,212,170,0.1); color:var(--green); border:1px solid rgba(0,212,170,0.2); }
@@ -235,34 +231,28 @@ textarea:focus { border-color:var(--green); }
     </div>
 
     <div class="phases">
+      <!-- Fila 1: Salida prevista + Llegada prevista -->
       <div class="phase-card" id="depCard">
         <span class="phase-icon">🛫</span>
-        <div class="phase-label">Despegue origen</div>
-        <div class="phase-row-times">
-          <div>
-            <div class="phase-time-label">Prevista</div>
-            <div class="phase-time muted" id="depTimeSched">--:--</div>
-          </div>
-          <div>
-            <div class="phase-time-label">Real</div>
-            <div class="phase-time muted" id="depTime">--:--</div>
-          </div>
-        </div>
+        <div class="phase-label">Salida prevista</div>
+        <div class="phase-time muted" id="depTimeSched">--:--</div>
         <div id="depDelay"></div>
       </div>
       <div class="phase-card" id="arrCard">
         <span class="phase-icon">🛬</span>
-        <div class="phase-label">Aterrizaje PMI</div>
-        <div class="phase-row-times">
-          <div>
-            <div class="phase-time-label">Prevista</div>
-            <div class="phase-time muted" id="arrTimeSched">--:--</div>
-          </div>
-          <div>
-            <div class="phase-time-label">Estimada</div>
-            <div class="phase-time muted" id="arrTime">--:--</div>
-          </div>
-        </div>
+        <div class="phase-label">Llegada prevista</div>
+        <div class="phase-time muted" id="arrTimeSched">--:--</div>
+      </div>
+      <!-- Fila 2: Salida real + Llegada estimada -->
+      <div class="phase-card" id="depRealCard">
+        <span class="phase-icon">✈️</span>
+        <div class="phase-label">Salida real</div>
+        <div class="phase-time muted" id="depTime">--:--</div>
+      </div>
+      <div class="phase-card" id="arrRealCard">
+        <span class="phase-icon">🎯</span>
+        <div class="phase-label">Llegada estimada</div>
+        <div class="phase-time muted" id="arrTime">--:--</div>
         <div id="arrDelay"></div>
       </div>
     </div>
@@ -701,25 +691,27 @@ function updateUI(fd, idx) {
                  : fd.dep_time_utc ? utcStrToLocal(fd.dep_time_utc)
                  : shortTime(fd.dep_time);
   const depDelay = fd.dep_delayed || 0;
-  const depCard  = document.getElementById('depCard');
-  depCard.className = 'phase-card';
   const departed = ['en-route','landed'].includes(fd.status);
 
-  // Scheduled departure (always show)
+  // Row 1: salida prevista
+  const depCard = document.getElementById('depCard');
+  depCard.className = 'phase-card';
   document.getElementById('depTimeSched').textContent = depSched;
   document.getElementById('depTimeSched').className = 'phase-time muted';
+  if (depDelay > 10) { depCard.classList.add('delayed'); renderDelayBadge('depDelay', depDelay); }
+  else document.getElementById('depDelay').innerHTML = '';
 
+  // Row 2: salida real
+  const depRealCard = document.getElementById('depRealCard');
+  depRealCard.className = 'phase-card';
   if (departed) {
     const realDep = fd.dep_actual_ts  ? tsToLocal(fd.dep_actual_ts)
                   : fd.dep_actual_utc ? utcStrToLocal(fd.dep_actual_utc)
                   : fd.dep_actual     ? shortTime(fd.dep_actual)
                   : depSched;
-    depCard.classList.add('done');
+    depRealCard.classList.add('done');
     document.getElementById('depTime').className = 'phase-time green';
     document.getElementById('depTime').textContent = realDep;
-    document.querySelector('#depCard .phase-time-label:last-of-type') && 
-      (document.querySelectorAll('#depCard .phase-time-label')[1].textContent = 'Real');
-    renderDelayBadge('depDelay', depDelay);
     if (depDelay > 15) {
       svc.etaDate = new Date(svc.etaDate.getTime() + depDelay * 60000);
       showAlert('warn','⚠️',`${svc.flight} despegó con ${depDelay} min de retraso.`);
@@ -727,8 +719,6 @@ function updateUI(fd, idx) {
   } else {
     document.getElementById('depTime').className = 'phase-time muted';
     document.getElementById('depTime').textContent = '--:--';
-    if (depDelay > 10) { depCard.classList.add('delayed'); renderDelayBadge('depDelay', depDelay); }
-    else document.getElementById('depDelay').innerHTML = '';
   }
 
   // ── ARRIVAL ──
@@ -737,22 +727,26 @@ function updateUI(fd, idx) {
                    : parseFlightArr(fd.arr_time);
   const arrSched = arrSchedMs ? tsToLocal(arrSchedMs / 1000) : '--:--';
   const arrDelay = fd.arr_delayed || fd.delayed || 0;
-  const arrCard  = document.getElementById('arrCard');
-  arrCard.className = 'phase-card';
 
-  // Scheduled arrival (always show)
+  // Row 1: llegada prevista
+  const arrCard = document.getElementById('arrCard');
+  arrCard.className = 'phase-card';
   document.getElementById('arrTimeSched').textContent = arrSched;
   document.getElementById('arrTimeSched').className = 'phase-time muted';
+
+  // Row 2: llegada estimada / real
+  const arrRealCard = document.getElementById('arrRealCard');
+  arrRealCard.className = 'phase-card';
 
   if (fd.status === 'landed') {
     const realArrMs = fd.arr_actual_ts  ? fd.arr_actual_ts * 1000
                     : fd.arr_actual_utc ? utcStrToMs(fd.arr_actual_utc)
                     : arrSchedMs + arrDelay * 60000;
-    const realArr = tsToLocal(realArrMs / 1000);
     arrCard.classList.add('done');
+    arrRealCard.classList.add('done');
+    document.getElementById('arrRealCard').querySelector('.phase-label').textContent = 'Llegada real';
     document.getElementById('arrTime').className = 'phase-time orange';
-    document.getElementById('arrTime').textContent = realArr;
-    document.querySelectorAll('#arrCard .phase-time-label')[1].textContent = 'Real';
+    document.getElementById('arrTime').textContent = tsToLocal(realArrMs / 1000);
     renderDelayBadge('arrDelay', arrDelay);
     landedMap[idx] = true;
     notify(`🛬 ${svc.flight} aterrizado`, `${svc.name} en terminal`);
@@ -761,15 +755,13 @@ function updateUI(fd, idx) {
     document.getElementById('nrfFill').style.width = '100%';
     if (realArrMs) svc.etaDate = new Date(realArrMs);
   } else {
-    // ETA estimada — prioridad: arr_estimated_ts > arr_estimated_utc > arr_time + delay
     const etaMs = fd.arr_estimated_ts  ? fd.arr_estimated_ts * 1000 + arrDelay * 60000
                 : fd.arr_estimated_utc ? utcStrToMs(fd.arr_estimated_utc) + arrDelay * 60000
                 : arrSchedMs + arrDelay * 60000;
     const etaStr = etaMs ? tsToLocal(etaMs / 1000) : '--:--';
-    const hasRealEta = fd.arr_estimated_ts || fd.arr_estimated_utc || arrDelay > 0;
-    document.querySelectorAll('#arrCard .phase-time-label')[1].textContent = hasRealEta ? 'Estimada' : 'Estimada';
     if (arrDelay > 10) {
       arrCard.classList.add('delayed');
+      arrRealCard.classList.add('delayed');
       document.getElementById('arrTime').className = 'phase-time yellow';
       renderDelayBadge('arrDelay', arrDelay);
       showAlert('warn','⚠️',`${svc.flight} llega con ${arrDelay} min de retraso. ETA: ${etaStr}`);
