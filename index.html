@@ -559,7 +559,14 @@ function checkAndFetch(idx) {
     setTimeout(() => checkAndFetch(idx), 15 * 60 * 1000);
     return;
   }
-  fetchFlight(idx).then(() => scheduleNext(idx, interval));
+  fetchFlight(idx).then(() => {
+    // Recalculate interval using updated ETA after fetch
+    const svcNow = services[idx];
+    if (!svcNow) return;
+    const msLeftNow = svcNow.etaDate - new Date();
+    const intervalNow = getInterval(msLeftNow) || interval;
+    scheduleNext(idx, intervalNow);
+  });
 }
 
 function scheduleNext(idx, interval) {
@@ -676,8 +683,9 @@ function updateUI(fd, idx) {
   const departed = ['en-route','landed'].includes(fd.status);
 
   if (departed && fd.dep_time) {
-    const realDepMs = parseFlight(fd.dep_time) + depDelay * 60000;
-    const realDep   = shortTime(new Date(realDepMs).toISOString().replace('T',' ').slice(0,16));
+    const realDep = fd.dep_actual
+      ? shortTime(fd.dep_actual)
+      : shortTime(new Date(parseFlight(fd.dep_time) + depDelay * 60000).toISOString().replace('T',' ').slice(0,16));
     depCard.classList.add('done');
     document.getElementById('depTime').className = 'phase-time green';
     document.getElementById('depTime').textContent = realDep;
@@ -766,14 +774,19 @@ function startDetailCountdown(idx) {
 }
 
 // ── HELPERS ──
+function toUTC(str) {
+  if (!str) return str;
+  const s = str.replace(' ','T');
+  return (s.endsWith('Z') || s.includes('+')) ? s : s + 'Z';
+}
 function shortTime(str) {
   if (!str) return '--:--';
-  const d = new Date(str.replace(' ','T'));
+  const d = new Date(toUTC(str));
   return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
 }
 function parseFlight(str) {
   if (!str) return 0;
-  return new Date(str.replace(' ','T')).getTime() || 0;
+  return new Date(toUTC(str)).getTime() || 0;
 }
 function renderDelayBadge(elId, min) {
   const el = document.getElementById(elId);
