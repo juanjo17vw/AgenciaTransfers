@@ -497,7 +497,9 @@ function renderList() {
       </div>
       <div class="svc-right">
         <div class="svc-eta ${etaClass}">${etaText}</div>
-        <div class="svc-flight">${s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="svc-flight">${
+          landed ? '🛬 ' : (fd?.status === 'landed' ? '🛬 ' : '🎯 ')
+        }${s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>
     </div>`;
   }).join('');
@@ -512,7 +514,10 @@ setInterval(() => {
       const timeEl = document.querySelector(`.svc-item:nth-child(${i+1}) .svc-flight`);
       if (!etaEl) return;
       // Update ETA time display
-      if (timeEl) timeEl.textContent = s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      if (timeEl) {
+        const prefix = landedMap[i] ? '🛬 ' : '🎯 ';
+        timeEl.textContent = prefix + s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+      }
       const landed = landedMap[i];
       const ms = s.etaDate - new Date();
       if (landed || ms <= 0) {
