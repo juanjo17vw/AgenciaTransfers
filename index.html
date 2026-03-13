@@ -444,7 +444,11 @@ function addService() {
     startServiceTracking(idx);
     if ('Notification' in window) Notification.requestPermission().then(r => notifPermission = r === 'granted');
   } catch(e) {
-    alert('Error al leer el mensaje. Asegúrate de que el formato es correcto.');
+    const norm2 = raw.replace(/\r?\n/g,' ').trim(); let pp = norm2.split(/\t+/).map(s=>s.trim()).filter(s=>s!==''); if(pp.length<3) pp=norm2.split(/ {2,}/).map(s=>s.trim()).filter(s=>s!==''); alert('ERR: '+e.message+'
+
+Campos ('+pp.length+'):
+'+pp.map((x,i)=>'['+i+']: "'+x+'"').join('
+'));
   }
 }
 
