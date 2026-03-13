@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="apple-touch-icon" href="agenciatransfers-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Transfers">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Transfer · Live</title>
@@ -308,7 +308,6 @@ let services = [];       // array of svc objects
 let currentIdx = null;   // index of active detail view
 let timers = {};         // { idx: { countdown, progress } }
 let flightDataMap = {};  // { idx: flightData }
-window._fdm = flightDataMap;
 let landedMap = {};      // { idx: bool }
 let notifPermission = false;
 
@@ -662,16 +661,14 @@ async function fetchFlight(idx) {
       if (json.error) throw new Error(json.error.message || 'API error');
       const fd = json.response;
       flightDataMap[idx] = fd || null;
-      window._fdm = flightDataMap;
-      incrementBudget();
+            incrementBudget();
       // DEBUG — mostrar campos de tiempo en pantalla
       if (fd) {
         const dbg = ['dep_time','dep_time_utc','dep_time_ts','dep_actual','dep_actual_utc','dep_actual_ts',
                      'arr_time','arr_time_utc','arr_time_ts','arr_estimated','arr_estimated_utc','arr_estimated_ts',
                      'dep_delayed','arr_delayed','status'];
         const lines = dbg.map(k => `${k}: ${fd[k] ?? '—'}`).join('\n');
-        document.getElementById('debugBox').textContent = lines;
-        document.getElementById('debugBox').style.display = 'block';
+
       }
       if (fd && currentIdx === idx) {
         updateUI(fd, idx);
