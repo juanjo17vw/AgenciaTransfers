@@ -269,6 +269,7 @@ textarea:focus { border-color:var(--green); }
       <button class="action-btn" onclick="openPoster()">🪧 Cartel</button>
       <button class="action-btn maps" onclick="openMaps()">🗺 Con clientes</button>
     </div>
+    <button class="action-btn" id="welcomeBtn" onclick="copyWelcome()" style="width:100%;margin-bottom:14px;">📋 Copiar mensaje de bienvenida</button>
 
     <div class="last-update" id="lastUpdate">—</div>
     <button class="delete-btn" id="deleteBtn" onclick="deleteCurrentService()">🗑 Eliminar servicio</button>
@@ -846,6 +847,45 @@ window.onload = () => {
   updateBudgetDisplay();
   loadServices();
 };
+
+function copyWelcome() {
+  if (currentIdx === null) return;
+  const svc = services[currentIdx];
+  const firstName = svc.firstName;
+  const msg = `Hi ${firstName},\nGood to see you on our island! I'm Juanjo, your driver to the hotel.\nIt's a pleasure to assist you. I'm waiting with the car in the reserved area. Please text me once you have your luggage, and I'll meet you at the meeting point – Paul Express.\nGracias!`;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(msg).then(() => {
+      const btn = document.getElementById('welcomeBtn');
+      btn.textContent = '✓ Copiado — pega en WhatsApp';
+      btn.style.borderColor = 'var(--green)';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => {
+        btn.textContent = '📋 Copiar mensaje de bienvenida';
+        btn.style.borderColor = '';
+        btn.style.color = '';
+      }, 3000);
+    });
+  } else {
+    // Fallback for iOS
+    const ta = document.createElement('textarea');
+    ta.value = msg;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('welcomeBtn');
+    btn.textContent = '✓ Copiado — pega en WhatsApp';
+    btn.style.borderColor = 'var(--green)';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => {
+      btn.textContent = '📋 Copiar mensaje de bienvenida';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }, 3000);
+  }
+}
 </script>
 </body>
 </html>
