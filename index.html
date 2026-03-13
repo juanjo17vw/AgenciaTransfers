@@ -766,8 +766,9 @@ function updateUI(fd, idx) {
     document.getElementById('nrfFill').style.width = '100%';
     if (realArrMs) svc.etaDate = new Date(realArrMs);
   } else {
-    const etaMs = fd.arr_estimated_ts  ? fd.arr_estimated_ts * 1000 + arrDelay * 60000
-                : fd.arr_estimated_utc ? utcStrToMs(fd.arr_estimated_utc) + arrDelay * 60000
+    // arr_estimated_ts ya incluye el retraso — NO sumar arrDelay de nuevo
+    const etaMs = fd.arr_estimated_ts  ? fd.arr_estimated_ts * 1000
+                : fd.arr_estimated_utc ? utcStrToMs(fd.arr_estimated_utc)
                 : arrSchedMs + arrDelay * 60000;
     const etaStr = etaMs ? tsToLocal(etaMs / 1000) : '--:--';
     if (arrDelay > 10) {
