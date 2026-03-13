@@ -988,7 +988,13 @@ function loadServices() {
       const idx = services.length;
       services.push(s);
       flightDataMap[idx] = null;
-      landedMap[idx] = false;
+      // Si la ETA ya pasó hace más de 5 min, marcar como en tierra directamente
+      const msSinceEta = new Date() - s.etaDate;
+      if (msSinceEta > 5 * 60 * 1000) {
+        landedMap[idx] = true;
+      } else {
+        landedMap[idx] = false;
+      }
       startServiceTracking(idx);
     });
     renderList();
