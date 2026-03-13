@@ -505,8 +505,30 @@ function renderList() {
 
 // Update list ETAs every second
 setInterval(() => {
-  if (document.getElementById('viewList').style.display !== 'none') renderList();
-}, 5000);
+  if (document.getElementById('viewList').style.display !== 'none') {
+    // Update only the countdown texts without full re-render
+    services.forEach((s, i) => {
+      const etaEl = document.querySelector(`.svc-item:nth-child(${i+1}) .svc-eta`);
+      if (!etaEl) return;
+      const landed = landedMap[i];
+      const ms = s.etaDate - new Date();
+      if (landed || ms <= 0) {
+        if (!landed && !landedMap[i]) {
+          landedMap[i] = true;
+          notify(`🛬 ${s.flight} en tierra`, `${s.name} ha aterrizado en PMI`);
+        }
+        etaEl.textContent = 'EN TIERRA';
+        etaEl.className = 'svc-eta urgent';
+      } else {
+        const h = Math.floor(ms/3600000);
+        const m = Math.floor((ms%3600000)/60000);
+        const s2 = Math.floor((ms%60000)/1000);
+        etaEl.textContent = h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}m ${String(s2).padStart(2,'0')}s`;
+        etaEl.className = 'svc-eta' + (h === 0 ? ' urgent' : '');
+      }
+    });
+  }
+}, 1000);
 
 // ── OPEN DETAIL ──
 function openDetail(idx) {
@@ -892,7 +914,29 @@ function renderDelayBadge(elId, min) {
   else if (min > 0)      el.innerHTML = `<span class="delay-badge late">+${min} min</span>`;
   else                   el.innerHTML = `<span class="delay-badge early">${min} min antes</span>`;
 }
-function notify(title, body) { if (notifPermission) new Notification(title,{body}); }
+function notify(title, body) {
+  // Web Notification (Chrome/desktop)
+  if (notifPermission) new Notification(title, { body, icon: '/AgenciaTransfers/agenciatransfers-icon.png' });
+  // Vibration (Android)
+  if (navigator.vibrate) navigator.vibrate([400, 100, 400, 100, 800]);
+  // Audio beep (works on iOS Safari when triggered by user interaction context)
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const playBeep = (freq, start, dur) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.5, ctx.currentTime + start);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+      o.start(ctx.currentTime + start);
+      o.stop(ctx.currentTime + start + dur + 0.1);
+    };
+    playBeep(880, 0, 0.3);
+    playBeep(880, 0.4, 0.3);
+    playBeep(1100, 0.8, 0.6);
+  } catch(e) {}
+}
 function showAlert(type, icon, text) {
   const el = document.getElementById('alertBanner');
   el.className = 'alert-banner show ' + type;
