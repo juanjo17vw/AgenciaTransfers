@@ -675,17 +675,21 @@ function updateUI(fd, idx) {
   svEl.className = 'status-val ' + svClass;
   svEl.textContent = svText;
 
-  // Departure
-  const depSched = fd.dep_time ? shortTime(fd.dep_time) : '--:--';
+  // Departure — use _ts (unix UTC) when available, else local string
+  // DEPARTURA — prioridad: dep_actual_ts > dep_actual_utc > dep_actual > dep_time_ts > dep_time_utc > dep_time(local)
+  const depSched = fd.dep_time_ts ? tsToLocal(fd.dep_time_ts)
+                 : fd.dep_time_utc ? utcStrToLocal(fd.dep_time_utc)
+                 : shortTime(fd.dep_time);
   const depDelay = fd.dep_delayed || 0;
   const depCard  = document.getElementById('depCard');
   depCard.className = 'phase-card';
   const departed = ['en-route','landed'].includes(fd.status);
 
-  if (departed && fd.dep_time) {
-    const realDep = fd.dep_actual
-      ? shortTime(fd.dep_actual)
-      : shortTime(new Date(parseFlight(fd.dep_time) + depDelay * 60000).toISOString().replace('T',' ').slice(0,16));
+  if (departed) {
+    const realDep = fd.dep_actual_ts  ? tsToLocal(fd.dep_actual_ts)
+                  : fd.dep_actual_utc ? utcStrToLocal(fd.dep_actual_utc)
+                  : fd.dep_actual     ? shortTime(fd.dep_actual)
+                  : depSched;
     depCard.classList.add('done');
     document.getElementById('depTime').className = 'phase-time green';
     document.getElementById('depTime').textContent = realDep;
@@ -703,15 +707,21 @@ function updateUI(fd, idx) {
     else document.getElementById('depDelay').innerHTML = '';
   }
 
-  // Arrival
-  const arrSched = fd.arr_time ? shortTime(fd.arr_time) : '--:--';
+  // LLEGADA — prioridad: arr_time_ts > arr_time_utc > arr_time(local PMI)
+  const arrSched = fd.arr_time_ts  ? tsToLocal(fd.arr_time_ts)
+                 : fd.arr_time_utc ? utcStrToLocal(fd.arr_time_utc)
+                 : shortTimeArr(fd.arr_time);
   const arrDelay = fd.arr_delayed || fd.delayed || 0;
   const arrCard  = document.getElementById('arrCard');
   arrCard.className = 'phase-card';
 
-  if (fd.status === 'landed' && fd.arr_time) {
-    const realArrMs = parseFlight(fd.arr_time) + arrDelay * 60000;
-    const realArr   = shortTime(new Date(realArrMs).toISOString().replace('T',' ').slice(0,16));
+  if (fd.status === 'landed') {
+    const realArrMs = fd.arr_actual_ts  ? fd.arr_actual_ts * 1000
+                    : fd.arr_actual_utc ? utcStrToMs(fd.arr_actual_utc)
+                    : fd.arr_time_ts    ? fd.arr_time_ts * 1000 + arrDelay * 60000
+                    : fd.arr_time_utc   ? utcStrToMs(fd.arr_time_utc) + arrDelay * 60000
+                    : parseFlightArr(fd.arr_time) + arrDelay * 60000;
+    const realArr = tsToLocal(realArrMs / 1000);
     arrCard.classList.add('done');
     document.getElementById('arrTime').className = 'phase-time orange';
     document.getElementById('arrTime').textContent = realArr;
@@ -723,8 +733,13 @@ function updateUI(fd, idx) {
     document.getElementById('nextRefreshSec').textContent = 'Completado';
     document.getElementById('nrfFill').style.width = '100%';
   } else {
-    const etaMs  = parseFlight(fd.arr_time || '') + arrDelay * 60000;
-    const etaStr = fd.arr_time ? shortTime(new Date(etaMs).toISOString().replace('T',' ').slice(0,16)) : arrSched;
+    // ETA — prioridad: arr_estimated_ts > arr_estimated_utc > arr_time_ts > arr_time_utc > arr_time
+    const etaMs = fd.arr_estimated_ts  ? fd.arr_estimated_ts * 1000 + arrDelay * 60000
+                : fd.arr_estimated_utc ? utcStrToMs(fd.arr_estimated_utc) + arrDelay * 60000
+                : fd.arr_time_ts       ? fd.arr_time_ts * 1000 + arrDelay * 60000
+                : fd.arr_time_utc      ? utcStrToMs(fd.arr_time_utc) + arrDelay * 60000
+                : parseFlightArr(fd.arr_time) + arrDelay * 60000;
+    const etaStr = tsToLocal(etaMs / 1000);
     if (arrDelay > 10) {
       arrCard.classList.add('delayed');
       document.getElementById('arrTime').className = 'phase-time yellow';
@@ -737,7 +752,7 @@ function updateUI(fd, idx) {
       document.getElementById('arrDelay').innerHTML = '';
     }
     document.getElementById('arrTime').textContent = etaStr;
-    if (fd.arr_time) svc.etaDate = new Date(etaMs);
+    if (etaMs) svc.etaDate = new Date(etaMs);
   }
 }
 
@@ -774,15 +789,53 @@ function startDetailCountdown(idx) {
 }
 
 // ── HELPERS ──
-function shortTime(str) {
-  if (!str) return '--:--';
-  // AirLabs times are already in local time of destination (PMI = Europe/Madrid)
-  // Parse as-is without timezone conversion
+// AirLabs time fields:
+//   _ts fields      = Unix timestamp UTC (most reliable, use first)
+//   _utc fields     = UTC string "YYYY-MM-DD HH:MM" (second choice)
+//   dep_time        = local time at origin airport
+//   arr_time        = local time at destination airport (PMI = Europe/Madrid)
+// Strategy: always prefer _ts > _utc string > local string via Europe/Madrid
+
+function tsToLocal(ts) {
+  // ts = unix seconds UTC → display as Europe/Madrid
+  return new Date(ts * 1000).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+}
+function utcStrToLocal(utcStr) {
+  // utcStr = "YYYY-MM-DD HH:MM" in UTC → display as Europe/Madrid
+  if (!utcStr) return '--:--';
+  const d = new Date(utcStr.replace(' ','T') + 'Z');
+  return isNaN(d) ? '--:--' : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+}
+function utcStrToMs(utcStr) {
+  if (!utcStr) return 0;
+  return new Date(utcStr.replace(' ','T') + 'Z').getTime() || 0;
+}
+function shortTime(str, ts, utcStr) {
+  if (ts)     return tsToLocal(ts);
+  if (utcStr) return utcStrToLocal(utcStr);
+  if (!str)   return '--:--';
+  // dep_time is local time at origin — display as-is (already correct local time shown on boards)
   const d = new Date(str.replace(' ','T'));
   return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 }
-function parseFlight(str) {
-  if (!str) return 0;
+function shortTimeArr(str, ts, utcStr) {
+  if (ts)     return tsToLocal(ts);
+  if (utcStr) return utcStrToLocal(utcStr);
+  if (!str)   return '--:--';
+  // arr_time is local time at destination (PMI) — display as-is
+  const d = new Date(str.replace(' ','T'));
+  return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+}
+function parseFlight(str, ts, utcStr) {
+  if (ts)     return ts * 1000;
+  if (utcStr) return utcStrToMs(utcStr);
+  if (!str)   return 0;
+  return new Date(str.replace(' ','T')).getTime() || 0;
+}
+function parseFlightArr(str, ts, utcStr) {
+  if (ts)     return ts * 1000;
+  if (utcStr) return utcStrToMs(utcStr);
+  if (!str)   return 0;
   return new Date(str.replace(' ','T')).getTime() || 0;
 }
 function renderDelayBadge(elId, min) {
