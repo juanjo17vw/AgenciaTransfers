@@ -497,7 +497,7 @@ function renderList() {
       </div>
       <div class="svc-right">
         <div class="svc-eta ${etaClass}">${etaText}</div>
-        <div class="svc-flight">${s.datetime.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="svc-flight">${s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>
     </div>`;
   }).join('');
@@ -509,7 +509,10 @@ setInterval(() => {
     // Update only the countdown texts without full re-render
     services.forEach((s, i) => {
       const etaEl = document.querySelector(`.svc-item:nth-child(${i+1}) .svc-eta`);
+      const timeEl = document.querySelector(`.svc-item:nth-child(${i+1}) .svc-flight`);
       if (!etaEl) return;
+      // Update ETA time display
+      if (timeEl) timeEl.textContent = s.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
       const landed = landedMap[i];
       const ms = s.etaDate - new Date();
       if (landed || ms <= 0) {
