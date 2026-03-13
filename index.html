@@ -106,6 +106,10 @@ textarea:focus { border-color:var(--green); }
 .phase-time.orange { color:var(--orange); }
 .phase-time.muted  { color:var(--muted); }
 .phase-sub   { font-size:10px; color:var(--muted); margin-top:5px; }
+.phase-row-times { display:flex; gap:14px; margin-top:6px; }
+.phase-row-times > div { flex:1; }
+.phase-time-label { font-size:9px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:3px; }
+.phase-row-times .phase-time { font-size:20px; }
 .delay-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:10px; margin-top:5px; }
 .delay-badge.late  { background:rgba(240,192,64,0.15); color:var(--yellow); border:1px solid rgba(240,192,64,0.3); }
 .delay-badge.early { background:rgba(0,212,170,0.1); color:var(--green); border:1px solid rgba(0,212,170,0.2); }
@@ -234,15 +238,31 @@ textarea:focus { border-color:var(--green); }
       <div class="phase-card" id="depCard">
         <span class="phase-icon">🛫</span>
         <div class="phase-label">Despegue origen</div>
-        <div class="phase-time muted" id="depTime">--:--</div>
-        <div class="phase-sub" id="depSub">Programado</div>
+        <div class="phase-row-times">
+          <div>
+            <div class="phase-time-label">Prevista</div>
+            <div class="phase-time muted" id="depTimeSched">--:--</div>
+          </div>
+          <div>
+            <div class="phase-time-label">Real</div>
+            <div class="phase-time muted" id="depTime">--:--</div>
+          </div>
+        </div>
         <div id="depDelay"></div>
       </div>
       <div class="phase-card" id="arrCard">
         <span class="phase-icon">🛬</span>
         <div class="phase-label">Aterrizaje PMI</div>
-        <div class="phase-time muted" id="arrTime">--:--</div>
-        <div class="phase-sub" id="arrSub">Programado</div>
+        <div class="phase-row-times">
+          <div>
+            <div class="phase-time-label">Prevista</div>
+            <div class="phase-time muted" id="arrTimeSched">--:--</div>
+          </div>
+          <div>
+            <div class="phase-time-label">Estimada</div>
+            <div class="phase-time muted" id="arrTime">--:--</div>
+          </div>
+        </div>
         <div id="arrDelay"></div>
       </div>
     </div>
@@ -676,14 +696,18 @@ function updateUI(fd, idx) {
   svEl.textContent = svText;
 
   // Departure — use _ts (unix UTC) when available, else local string
-  // DEPARTURA — prioridad: dep_actual_ts > dep_actual_utc > dep_actual > dep_time_ts > dep_time_utc > dep_time(local)
-  const depSched = fd.dep_time_ts ? tsToLocal(fd.dep_time_ts)
+  // ── DEPARTURE ──
+  const depSched = fd.dep_time_ts  ? tsToLocal(fd.dep_time_ts)
                  : fd.dep_time_utc ? utcStrToLocal(fd.dep_time_utc)
                  : shortTime(fd.dep_time);
   const depDelay = fd.dep_delayed || 0;
   const depCard  = document.getElementById('depCard');
   depCard.className = 'phase-card';
   const departed = ['en-route','landed'].includes(fd.status);
+
+  // Scheduled departure (always show)
+  document.getElementById('depTimeSched').textContent = depSched;
+  document.getElementById('depTimeSched').className = 'phase-time muted';
 
   if (departed) {
     const realDep = fd.dep_actual_ts  ? tsToLocal(fd.dep_actual_ts)
@@ -693,7 +717,8 @@ function updateUI(fd, idx) {
     depCard.classList.add('done');
     document.getElementById('depTime').className = 'phase-time green';
     document.getElementById('depTime').textContent = realDep;
-    document.getElementById('depSub').textContent  = `Despegó · Prog: ${depSched}`;
+    document.querySelector('#depCard .phase-time-label:last-of-type') && 
+      (document.querySelectorAll('#depCard .phase-time-label')[1].textContent = 'Real');
     renderDelayBadge('depDelay', depDelay);
     if (depDelay > 15) {
       svc.etaDate = new Date(svc.etaDate.getTime() + depDelay * 60000);
@@ -701,54 +726,55 @@ function updateUI(fd, idx) {
     }
   } else {
     document.getElementById('depTime').className = 'phase-time muted';
-    document.getElementById('depTime').textContent = depSched;
-    document.getElementById('depSub').textContent  = 'Programado';
+    document.getElementById('depTime').textContent = '--:--';
     if (depDelay > 10) { depCard.classList.add('delayed'); renderDelayBadge('depDelay', depDelay); }
     else document.getElementById('depDelay').innerHTML = '';
   }
 
-  // LLEGADA — prioridad: arr_time_ts > arr_time_utc > arr_time(local PMI)
-  const arrSched = fd.arr_time_ts  ? tsToLocal(fd.arr_time_ts)
-                 : fd.arr_time_utc ? utcStrToLocal(fd.arr_time_utc)
-                 : shortTimeArr(fd.arr_time);
+  // ── ARRIVAL ──
+  const arrSchedMs = fd.arr_time_ts  ? fd.arr_time_ts * 1000
+                   : fd.arr_time_utc ? utcStrToMs(fd.arr_time_utc)
+                   : parseFlightArr(fd.arr_time);
+  const arrSched = arrSchedMs ? tsToLocal(arrSchedMs / 1000) : '--:--';
   const arrDelay = fd.arr_delayed || fd.delayed || 0;
   const arrCard  = document.getElementById('arrCard');
   arrCard.className = 'phase-card';
 
+  // Scheduled arrival (always show)
+  document.getElementById('arrTimeSched').textContent = arrSched;
+  document.getElementById('arrTimeSched').className = 'phase-time muted';
+
   if (fd.status === 'landed') {
     const realArrMs = fd.arr_actual_ts  ? fd.arr_actual_ts * 1000
                     : fd.arr_actual_utc ? utcStrToMs(fd.arr_actual_utc)
-                    : fd.arr_time_ts    ? fd.arr_time_ts * 1000 + arrDelay * 60000
-                    : fd.arr_time_utc   ? utcStrToMs(fd.arr_time_utc) + arrDelay * 60000
-                    : parseFlightArr(fd.arr_time) + arrDelay * 60000;
+                    : arrSchedMs + arrDelay * 60000;
     const realArr = tsToLocal(realArrMs / 1000);
     arrCard.classList.add('done');
     document.getElementById('arrTime').className = 'phase-time orange';
     document.getElementById('arrTime').textContent = realArr;
-    document.getElementById('arrSub').textContent  = `En tierra · Prog: ${arrSched}`;
+    document.querySelectorAll('#arrCard .phase-time-label')[1].textContent = 'Real';
     renderDelayBadge('arrDelay', arrDelay);
     landedMap[idx] = true;
     notify(`🛬 ${svc.flight} aterrizado`, `${svc.name} en terminal`);
     showAlert('good','🛬',`${svc.flight} en tierra PMI. ¡Dirígete al punto de encuentro!`);
     document.getElementById('nextRefreshSec').textContent = 'Completado';
     document.getElementById('nrfFill').style.width = '100%';
+    if (realArrMs) svc.etaDate = new Date(realArrMs);
   } else {
-    // ETA — prioridad: arr_estimated_ts > arr_estimated_utc > arr_time_ts > arr_time_utc > arr_time
+    // ETA estimada — prioridad: arr_estimated_ts > arr_estimated_utc > arr_time + delay
     const etaMs = fd.arr_estimated_ts  ? fd.arr_estimated_ts * 1000 + arrDelay * 60000
                 : fd.arr_estimated_utc ? utcStrToMs(fd.arr_estimated_utc) + arrDelay * 60000
-                : fd.arr_time_ts       ? fd.arr_time_ts * 1000 + arrDelay * 60000
-                : fd.arr_time_utc      ? utcStrToMs(fd.arr_time_utc) + arrDelay * 60000
-                : parseFlightArr(fd.arr_time) + arrDelay * 60000;
-    const etaStr = tsToLocal(etaMs / 1000);
+                : arrSchedMs + arrDelay * 60000;
+    const etaStr = etaMs ? tsToLocal(etaMs / 1000) : '--:--';
+    const hasRealEta = fd.arr_estimated_ts || fd.arr_estimated_utc || arrDelay > 0;
+    document.querySelectorAll('#arrCard .phase-time-label')[1].textContent = hasRealEta ? 'Estimada' : 'Estimada';
     if (arrDelay > 10) {
       arrCard.classList.add('delayed');
       document.getElementById('arrTime').className = 'phase-time yellow';
-      document.getElementById('arrSub').textContent  = `ETA actualizada · Prog: ${arrSched}`;
       renderDelayBadge('arrDelay', arrDelay);
       showAlert('warn','⚠️',`${svc.flight} llega con ${arrDelay} min de retraso. ETA: ${etaStr}`);
     } else {
-      document.getElementById('arrTime').className = 'phase-time ' + (fd.status==='en-route'?'green':'muted');
-      document.getElementById('arrSub').textContent  = fd.status==='en-route' ? 'ETA estimada' : 'Programado';
+      document.getElementById('arrTime').className = 'phase-time ' + (fd.status==='en-route' ? 'green' : 'muted');
       document.getElementById('arrDelay').innerHTML = '';
     }
     document.getElementById('arrTime').textContent = etaStr;
