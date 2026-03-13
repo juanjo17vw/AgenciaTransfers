@@ -308,6 +308,7 @@ let services = [];       // array of svc objects
 let currentIdx = null;   // index of active detail view
 let timers = {};         // { idx: { countdown, progress } }
 let flightDataMap = {};  // { idx: flightData }
+window._fdm = flightDataMap;
 let landedMap = {};      // { idx: bool }
 let notifPermission = false;
 
@@ -640,6 +641,7 @@ async function fetchFlight(idx) {
       if (json.error) throw new Error(json.error.message || 'API error');
       const fd = json.response;
       flightDataMap[idx] = fd || null;
+      window._fdm = flightDataMap;
       incrementBudget();
       // DEBUG — mostrar campos de tiempo en pantalla
       if (fd) {
