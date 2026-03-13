@@ -621,27 +621,35 @@ function startServiceTracking(idx) {
 }
 
 function getInterval(msToArrival) {
-  if (msToArrival > 3 * 3600000) return null;
-  if (msToArrival > 1 * 3600000) return 30 * 60;
-  if (msToArrival > 20 * 60000)  return 15 * 60;
-  return 5 * 60;
+  if (msToArrival > 3 * 3600000) return 60 * 60;   // >3h: cada 1h
+  if (msToArrival > 1 * 3600000) return 60 * 60;   // 1-3h: cada 1h
+  if (msToArrival > 30 * 60000)  return 15 * 60;   // 30-60 min: cada 15 min
+  return 5 * 60;                                     // <30 min: cada 5 min
 }
 
 function checkAndFetch(idx) {
   if (landedMap[idx]) return;
   const svc = services[idx];
   if (!svc) return;
+  // Use etaDate (real ETA from AirLabs) to decide interval
   const msLeft = svc.etaDate - new Date();
   const interval = getInterval(msLeft);
   if (interval === null) {
+    // Too far away — check again in 15 min in case flight has moved
     setTimeout(() => checkAndFetch(idx), 15 * 60 * 1000);
     return;
   }
   fetchFlight(idx).then(() => {
-    // Recalculate interval using updated ETA after fetch
+    if (landedMap[idx]) return;
     const svcNow = services[idx];
     if (!svcNow) return;
+    // Always use updated etaDate after fetch for next interval
     const msLeftNow = svcNow.etaDate - new Date();
+    if (msLeftNow <= 0) {
+      // Should have landed — try again in 2 min to confirm
+      scheduleNext(idx, 2 * 60);
+      return;
+    }
     const intervalNow = getInterval(msLeftNow) || interval;
     scheduleNext(idx, intervalNow);
   });
@@ -789,9 +797,20 @@ function updateUI(fd, idx) {
     depRealCard.classList.add('done');
     document.getElementById('depTime').className = 'phase-time green';
     document.getElementById('depTime').textContent = realDep;
+    // Notificar despegue solo la primera vez
+    const prevStatus = svc._lastStatus || '';
+    if (prevStatus !== 'en-route' && prevStatus !== 'landed' && fd.status === 'en-route') {
+      if (depDelay > 5) {
+        notify(`✈️ ${svc.flight} despegó (+${depDelay} min)`, `ETA llegada: ${svc.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`);
+        showAlert('warn','✈️',`${svc.flight} en aire con ${depDelay} min de retraso. ETA: ${svc.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`);
+      } else {
+        notify(`✈️ ${svc.flight} despegó`, `ETA llegada: ${svc.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`);
+        showAlert('good','✈️',`${svc.flight} en aire. ETA llegada: ${svc.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`);
+      }
+    }
+    svc._lastStatus = fd.status;
     if (depDelay > 15) {
       svc.etaDate = new Date(svc.etaDate.getTime() + depDelay * 60000);
-      showAlert('warn','⚠️',`${svc.flight} despegó con ${depDelay} min de retraso.`);
     }
   } else {
     document.getElementById('depTime').className = 'phase-time muted';
@@ -999,6 +1018,7 @@ function saveServices() {
     pax: s.pax, name: s.name, flight: s.flight,
     hotel: s.hotel, city: s.city, price: s.price,
     firstName: s.firstName, lastName: s.lastName,
+    _lastStatus: s._lastStatus || '',
   }));
   localStorage.setItem('tl_services', JSON.stringify(toSave));
 }
