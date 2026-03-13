@@ -774,19 +774,16 @@ function startDetailCountdown(idx) {
 }
 
 // ── HELPERS ──
-function toUTC(str) {
-  if (!str) return str;
-  const s = str.replace(' ','T');
-  return (s.endsWith('Z') || s.includes('+')) ? s : s + 'Z';
-}
 function shortTime(str) {
   if (!str) return '--:--';
-  const d = new Date(toUTC(str));
-  return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+  // AirLabs times are already in local time of destination (PMI = Europe/Madrid)
+  // Parse as-is without timezone conversion
+  const d = new Date(str.replace(' ','T'));
+  return isNaN(d) ? str.slice(-5) : d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
 }
 function parseFlight(str) {
   if (!str) return 0;
-  return new Date(toUTC(str)).getTime() || 0;
+  return new Date(str.replace(' ','T')).getTime() || 0;
 }
 function renderDelayBadge(elId, min) {
   const el = document.getElementById(elId);
