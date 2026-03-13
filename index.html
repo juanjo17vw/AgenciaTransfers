@@ -623,10 +623,11 @@ async function fetchFlight(idx) {
   const apiUrl = `https://airlabs.co/api/v9/flight?flight_iata=${flightCode}&api_key=${key}`;
 
   const proxyList = [
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+    u => `https://cors.eu.org/${u}`,
+    u => `https://corsproxy.org/?url=${encodeURIComponent(u)}`,
     u => `https://proxy.cors.sh/${u}`,
   ];
 
@@ -814,7 +815,7 @@ function startDetailCountdown(idx) {
     el.className = 'cd-val' + (h===0?' urgent':'');
     el.textContent = h>0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     lbl.textContent = 'Tiempo hasta llegada PMI';
-    sub.textContent = `ETA: ${svc.datetime.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`;
+    sub.textContent = `ETA: ${svc.etaDate.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}`;
   }, 1000);
 }
 
