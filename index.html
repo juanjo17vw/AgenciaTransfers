@@ -366,60 +366,62 @@ function parseRaw(raw) {
     p = [p[0] + ' ' + p[1], ...p.slice(2)];
   }
 
-  // p[0]="31/12/2025 10:35", p[1]="Arrival", p[2]="4 Jakob Leeb FR104 Aeropuerto PMI Innside Palma Center Palma 34,00 €"
-  // If only 3 parts (mixed format), split p[2] by known patterns
-  let pax, name, flight, hotel, city, price;
+  // p[0]="13/03/2026 23:20", p[1]="Arrival 3", p[2]="*1BB* Esther Suñer", p[3]="VY3955 Valencia", p[4]="Aeropuerto PMI", p[5]="Belle Marivent Cala Major 40,00 €"
+  let pax, name, flight, hotel, city, price, notes = '', specialCodes = [];
 
-  if (p.length >= 8) {
-    // Clean tab-separated format
-    const hasEmpty = p[3] === '';
-    const o = hasEmpty ? 0 : -1;
-    pax    = p[2];
-    name   = p[4 + o] || 'Cliente';
-    flight = p[5 + o] || '—';
-    hotel  = p[7 + o] || '—';
-    city   = p[8 + o] || '—';
-    price  = p[9 + o] || '—';
+  // Join everything from p[2] onwards
+  const allRaw = p.slice(2).join(' ').replace(/\r?\n/g, ' ').trim();
+
+  // 1. Strip notes after price (anything after €...texto)
+  const notesMatch = allRaw.match(/([\d,.]+\s*€)(.*)$/);
+  price = notesMatch ? notesMatch[1].trim() : '—';
+  notes = notesMatch ? notesMatch[2].trim() : '';
+  const withoutNotes = notesMatch ? allRaw.slice(0, allRaw.indexOf(notesMatch[0]) + notesMatch[1].length).trim() : allRaw;
+
+  // 2. Extract special codes like *1BB*, *VIP*, etc. (asterisk-wrapped)
+  const codeMatches = withoutNotes.match(/\*([^*]+)\*/g) || [];
+  specialCodes = codeMatches.map(c => c.replace(/\*/g, '').trim());
+  const withoutCodes = withoutNotes.replace(/\*[^*]+\*\s*/g, '').trim();
+
+  // 3. Extract pax — puede venir como: "3", "3pax", "3 pax", en p[1] o p[2]
+  const paxFromP1 = (p[1] || '').match(/\d+/);
+  const paxFromP2 = (p[2] || '').trim().match(/^(\d+)\s*(?:pax)?$/i);
+  pax = paxFromP2 ? paxFromP2[1] : (paxFromP1 ? paxFromP1[0] : '1');
+  // Si pax vino de p[2], el resto empieza desde p[3]
+  const restStart = paxFromP2 ? 3 : 2;
+  const allRawAdj = p.slice(restStart).join(' ').replace(/\r?\n/g, ' ').trim();
+
+  // 4. Extract flight code (2-3 uppercase letters + digits)
+  // Strip leading pax number/pax word from withoutCodes if present
+  const withoutCodesClean = withoutCodes.replace(/^\d+\s*(?:pax)?\s*/i, '').trim();
+  const flightMatch = withoutCodesClean.match(/\b([A-Z]{2,3}\d{2,})\b/);
+  flight = flightMatch ? flightMatch[1] : '—';
+  const flightIdx = withoutCodesClean.indexOf(flight);
+
+  // 5. Name = everything before flight code (minus pax if numeric first token)
+  const beforeFlight = withoutCodesClean.slice(0, flightIdx).trim();
+  const bfParts = beforeFlight.split(/\s+/);
+  name = (/^\d+$/.test(bfParts[0]) ? bfParts.slice(1) : bfParts).join(' ') || 'Cliente';
+
+  // 6. After flight: may contain origin city + "Aeropuerto PMI" + hotel + city
+  const afterFlight = withoutCodesClean.slice(flightIdx + flight.length).trim();
+  // Remove origin city (word(s) before "Aeropuerto")
+  const afterAirportMatch = afterFlight.match(/(?:.*?)(Aeropuerto\s+\w+)\s+(.*)/i);
+  const hotelPart = afterAirportMatch ? afterAirportMatch[2].trim() : afterFlight;
+  // Remove price from hotel part
+  const hotelClean = hotelPart.replace(/[\d,.]+\s*€.*$/, '').trim();
+  // City = last word, hotel = rest
+  // Hotel = nombre completo. City = última palabra solo si parece ciudad conocida,
+  // si no, hotel = todo y city = 'Palma'
+  const KNOWN_CITIES = ['Palma', 'Alcudia', 'Pollensa', 'Soller', 'Manacor', 'Inca', 'Llucmajor', 'Calvia', 'Andratx'];
+  const hParts = hotelClean.split(/\s+/);
+  const lastWord = hParts[hParts.length - 1] || '';
+  if (KNOWN_CITIES.some(c => c.toLowerCase() === lastWord.toLowerCase())) {
+    city  = lastWord;
+    hotel = hParts.slice(0, -1).join(' ') || hotelClean;
   } else {
-    // Mixed format — join all parts from p[2] onwards into one string, then parse
-    const allRest = p.slice(2).join(' ').replace(/\r?\n/g, ' ').trim();
-
-    // Extract price (last €-amount)
-    const priceMatch = allRest.match(/([\d,.]+\s*€)\s*$/);
-    price = priceMatch ? priceMatch[1].trim() : '—';
-    const withoutPrice = allRest.replace(/[\d,.]+\s*€\s*$/, '').trim();
-
-    // Extract flight code (1-3 uppercase letters + digits e.g. FR104, VL1796, U21234)
-    const flightMatch = withoutPrice.match(/\b([A-Z]{1,3}\d{2,})\b/);
-    flight = flightMatch ? flightMatch[1] : '—';
-    const flightIdx = withoutPrice.indexOf(flight);
-
-    // Before flight: "4 Jakob Leeb" or "Carlos Mendez" (no pax number)
-    const beforeFlight = withoutPrice.slice(0, flightIdx).trim();
-    const bfParts = beforeFlight.split(' ');
-    // Check if p[1] contains the pax count (e.g. "Arrival 2") or if first token is a number
-    const paxFromType = (p[1] || '').match(/\d+/);
-    if (paxFromType) {
-      pax  = paxFromType[0];
-      name = bfParts.join(' ') || 'Cliente';
-    } else if (/^\d+$/.test(bfParts[0])) {
-      pax  = bfParts[0];
-      name = bfParts.slice(1).join(' ') || 'Cliente';
-    } else {
-      pax  = '1';
-      name = bfParts.join(' ') || 'Cliente';
-    }
-
-    // After flight: "Aeropuerto PMI Brondo Architect Hotel Palma"
-    const afterFlight = withoutPrice.slice(flightIdx + flight.length).trim();
-    // Remove airport prefix
-    const airportMatch = afterFlight.match(/^(Aeropuerto\s+\w+)\s+/i);
-    const afterAirport = airportMatch ? afterFlight.slice(airportMatch[0].length).trim() : afterFlight;
-
-    // City is last word, hotel is everything before
-    const afterParts = afterAirport.split(' ');
-    city  = afterParts[afterParts.length - 1] || '—';
-    hotel = afterParts.slice(0, -1).join(' ') || '—';
+    hotel = hotelClean;
+    city  = 'Palma';
   }
 
   const [datePart, timePart] = p[0].split(' ');
@@ -434,6 +436,8 @@ function parseRaw(raw) {
     hotel:  hotel.trim(),
     city:   city.trim(),
     price:  price.trim(),
+    notes:  notes.replace(/^[_*]+|[_*]+$/g, '').trim(),
+    specialCodes: specialCodes,
   };
   svc.etaDate = new Date(svc.datetime);
   const parts = svc.name.split(' ');
@@ -549,7 +553,8 @@ function openDetail(idx) {
   document.getElementById('detFirst').textContent = svc.firstName.toUpperCase();
   document.getElementById('detLast').textContent  = svc.lastName.toUpperCase();
   document.getElementById('paxName').innerHTML = `<span style="display:block;font-size:10px;letter-spacing:3px;color:var(--muted);font-weight:400;margin-bottom:2px;">${svc.firstName.toUpperCase()}</span><span style="font-size:16px;letter-spacing:2px;">${svc.lastName.toUpperCase()}</span>`;
-  document.getElementById('paxMeta').textContent = `${svc.flight} · ${svc.city} · ${svc.pax} pax`;
+  const codesStr = svc.specialCodes && svc.specialCodes.length ? ' · ⚠️ ' + svc.specialCodes.join(' ⚠️ ') : '';
+  document.getElementById('paxMeta').textContent = `${svc.flight} · ${svc.city} · ${svc.pax} pax${codesStr}`;
   document.getElementById('paxPrice').textContent = svc.price;
   hideAlert();
 
@@ -602,29 +607,29 @@ function startServiceTracking(idx) {
   if (landedMap[idx]) return;
   const svc = services[idx];
   if (!svc) return;
-  // Always fetch immediately on load if flight is today and not >6h away from scheduled time
-  const msFromScheduled = svc.datetime - new Date();
-  const msFromEta = svc.etaDate - new Date();
-  // If scheduled time was in the past or within 6h future, fetch immediately regardless of ETA
-  if (msFromScheduled < 6 * 3600000) {
+  // Solo hacer fetch inmediato si faltan menos de 2h para la llegada
+  const msToEta = svc.etaDate - new Date();
+  if (msToEta <= 2 * 3600000) {
     fetchFlight(idx).then(() => {
       const svcNow = services[idx];
       if (!svcNow || landedMap[idx]) return;
       const msLeftNow = svcNow.etaDate - new Date();
       const intervalNow = getInterval(msLeftNow);
       if (intervalNow) scheduleNext(idx, intervalNow);
-      else setTimeout(() => checkAndFetch(idx), 15 * 60 * 1000);
+      else setTimeout(() => checkAndFetch(idx), 60 * 60 * 1000);
     });
   } else {
-    checkAndFetch(idx);
+    // Esperar hasta que falten 2h
+    const msWait = msToEta - 2 * 3600000;
+    setTimeout(() => checkAndFetch(idx), msWait);
   }
 }
 
 function getInterval(msToArrival) {
-  if (msToArrival > 3 * 3600000) return 60 * 60;   // >3h: cada 1h
-  if (msToArrival > 1 * 3600000) return 60 * 60;   // 1-3h: cada 1h
-  if (msToArrival > 30 * 60000)  return 15 * 60;   // 30-60 min: cada 15 min
-  return 5 * 60;                                     // <30 min: cada 5 min
+  if (msToArrival > 2 * 3600000) return null;       // >2h: sin polling
+  if (msToArrival > 1 * 3600000) return 60 * 60;   // 1-2h: cada 1h (1 llamada)
+  if (msToArrival > 30 * 60000)  return 15 * 60;   // 30-60 min: cada 15 min (4 llamadas)
+  return 5 * 60;                                     // <30 min: cada 5 min (6 llamadas)
 }
 
 function checkAndFetch(idx) {
@@ -1019,6 +1024,8 @@ function saveServices() {
     hotel: s.hotel, city: s.city, price: s.price,
     firstName: s.firstName, lastName: s.lastName,
     _lastStatus: s._lastStatus || '',
+    notes: s.notes || '',
+    specialCodes: s.specialCodes || [],
   }));
   localStorage.setItem('tl_services', JSON.stringify(toSave));
 }
