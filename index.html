@@ -362,6 +362,11 @@ function parseRaw(raw) {
     p = normalized.split(/  +/).map(s => s.trim()).filter(s => s !== '');
   }
 
+  // If p[0] is just a date (DD/MM/YYYY) and p[1] is just a time (HH:MM), merge them
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(p[0]) && /^\d{1,2}:\d{2}$/.test(p[1])) {
+    p = [p[0] + ' ' + p[1], ...p.slice(2)];
+  }
+
   // p[0]="31/12/2025 10:35", p[1]="Arrival", p[2]="4 Jakob Leeb FR104 Aeropuerto PMI Innside Palma Center Palma 34,00 €"
   // If only 3 parts (mixed format), split p[2] by known patterns
   let pax, name, flight, hotel, city, price;
@@ -390,11 +395,21 @@ function parseRaw(raw) {
     flight = flightMatch ? flightMatch[1] : '—';
     const flightIdx = withoutPrice.indexOf(flight);
 
-    // Before flight: "4 Jakob Leeb" or "4 Vanja Fenzl"
+    // Before flight: "4 Jakob Leeb" or "Carlos Mendez" (no pax number)
     const beforeFlight = withoutPrice.slice(0, flightIdx).trim();
     const bfParts = beforeFlight.split(' ');
-    pax  = bfParts[0] || '?';
-    name = bfParts.slice(1).join(' ') || 'Cliente';
+    // Check if p[1] contains the pax count (e.g. "Arrival 2") or if first token is a number
+    const paxFromType = (p[1] || '').match(/\d+/);
+    if (paxFromType) {
+      pax  = paxFromType[0];
+      name = bfParts.join(' ') || 'Cliente';
+    } else if (/^\d+$/.test(bfParts[0])) {
+      pax  = bfParts[0];
+      name = bfParts.slice(1).join(' ') || 'Cliente';
+    } else {
+      pax  = '1';
+      name = bfParts.join(' ') || 'Cliente';
+    }
 
     // After flight: "Aeropuerto PMI Brondo Architect Hotel Palma"
     const afterFlight = withoutPrice.slice(flightIdx + flight.length).trim();
@@ -444,11 +459,7 @@ function addService() {
     startServiceTracking(idx);
     if ('Notification' in window) Notification.requestPermission().then(r => notifPermission = r === 'granted');
   } catch(e) {
-    const norm2 = raw.replace(/\r?\n/g,' ').trim(); let pp = norm2.split(/\t+/).map(s=>s.trim()).filter(s=>s!==''); if(pp.length<3) pp=norm2.split(/ {2,}/).map(s=>s.trim()).filter(s=>s!==''); alert('ERR: '+e.message+'
-
-Campos ('+pp.length+'):
-'+pp.map((x,i)=>'['+i+']: "'+x+'"').join('
-'));
+    alert('Error al leer el mensaje. Asegúrate de que el formato es correcto.\nDetalle: ' + e.message);
   }
 }
 
